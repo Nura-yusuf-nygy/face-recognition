@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Face Recognition System</h1>
+            <p>Upload images or use your webcam to recognize faces</p>
+        </header>
+
+        <main>
+            <!-- Navigation Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('upload')">Upload Image</button>
+                <button class="tab-btn" onclick="switchTab('webcam')">Webcam Feed</button>
+                <button class="tab-btn" onclick="switchTab('add-face')">Add Face</button>
+                <button class="tab-btn" onclick="switchTab('known-faces')">Known Faces</button>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="upload" class="tab-content active">
+                <div class="upload-section">
+                    <div class="upload-box" id="uploadBox">
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <p>Drag and drop an image here</p>
+                        <p>or</p>
+                        <button onclick="document.getElementById('imageInput').click()" class="btn btn-primary">Select Image</button>
+                    </div>
+                    <button onclick="recognizeImage()" class="btn btn-success">Recognize Faces</button>
+                </div>
+
+                <div id="uploadResults" class="results-section">
+                    <div id="previewContainer">
+                        <img id="preview" style="max-width: 100%; display: none;">
+                    </div>
+                    <div id="resultsContainer"></div>
+                </div>
+            </div>
+
+            <!-- Webcam Tab -->
+            <div id="webcam" class="tab-content">
+                <div class="webcam-section">
+                    <img id="webcamFeed" src="" alt="Webcam Feed" style="display: none;">
+                    <div id="webcamStatus">Webcam not started</div>
+                    <button onclick="startWebcam()" class="btn btn-success">Start Webcam</button>
+                    <button onclick="stopWebcam()" class="btn btn-danger">Stop Webcam</button>
+                </div>
+            </div>
+
+            <!-- Add Face Tab -->
+            <div id="add-face" class="tab-content">
+                <div class="add-face-section">
+                    <div class="form-group">
+                        <label for="personName">Person Name:</label>
+                        <input type="text" id="personName" placeholder="Enter person's name">
+                    </div>
+                    <div class="upload-box" id="addFaceBox">
+                        <input type="file" id="addFaceInput" accept="image/*" hidden>
+                        <p>Drag and drop an image here</p>
+                        <p>or</p>
+                        <button onclick="document.getElementById('addFaceInput').click()" class="btn btn-primary">Select Image</button>
+                    </div>
+                    <button onclick="addFace()" class="btn btn-success">Add Face</button>
+                    <div id="addFaceResult"></div>
+                </div>
+            </div>
+
+            <!-- Known Faces Tab -->
+            <div id="known-faces" class="tab-content">
+                <div class="known-faces-section">
+                    <button onclick="listKnownFaces()" class="btn btn-primary">Refresh List</button>
+                    <div id="knownFacesList"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Face Recognition System &copy; 2026 | Powered by face_recognition library  | Made by Nura Yusuf</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
