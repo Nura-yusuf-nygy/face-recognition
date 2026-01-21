@@ -133,6 +133,30 @@ def list_known_faces():
     return jsonify({'faces': sorted(faces)})
 
 
+@app.route('/delete_face/<person_name>', methods=['DELETE', 'POST'])
+def delete_face(person_name):
+    """Delete a person from known faces."""
+    person_dir = os.path.join('known_faces', person_name)
+    
+    try:
+        if os.path.exists(person_dir):
+            import shutil
+            shutil.rmtree(person_dir)
+            
+            # Clear cache to force reload
+            if os.path.exists('face_model.yml'):
+                os.remove('face_model.yml')
+            if os.path.exists('face_encodings.pkl'):
+                os.remove('face_encodings.pkl')
+            
+            return jsonify({'success': True, 'message': f'Deleted {person_name}'})
+        else:
+            return jsonify({'success': False, 'message': 'Person not found'}), 404
+    
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint."""

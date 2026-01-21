@@ -75,7 +75,7 @@ function recognizeImage() {
     const formData = new FormData();
     formData.append('file', imageInput.files[0]);
 
-    showMessage('Processing image...', 'info');
+    showMessage('📤 Uploading and processing image...', 'info');
 
     fetch('/recognize_image', {
         method: 'POST',
@@ -83,10 +83,21 @@ function recognizeImage() {
     })
     .then(response => response.json())
     .then(data => {
+        if (data.error) {
+            showMessage('❌ Error: ' + data.error, 'error');
+            return;
+        }
+
+        if (!data.faces || data.faces.length === 0) {
+            showMessage('⚠️ No faces detected in the image', 'info');
+            return;
+        }
+
+        showMessage(`✅ Image uploaded! Found ${data.faces.length} face(s)`, 'success');
         displayResults(data);
     })
     .catch(error => {
-        showMessage('Error: ' + error.message, 'error');
+        showMessage('❌ Error: ' + error.message, 'error');
     });
 }
 
@@ -131,21 +142,11 @@ function displayResults(data) {
 // Webcam - Browser based
 let webcamRunning = false;
 let stream = null;
+let frameCount = 0;
 
 async function startWebcam() {
     const canvas = document.getElementById('webcamCanvas');
     const status = document.getElementById('webcamStatus');
-    
-    if (!canvas) {
-        // Create canvas if it doesn't exist
-        const container = document.getElementById('webcamFeed').parentElement;
-        const newCanvas = document.createElement('canvas');
-        newCanvas.id = 'webcamCanvas';
-        newCanvas.style.maxWidth = '100%';
-        newCanvas.style.borderRadius = '8px';
-        newCanvas.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.2)';
-        container.insertBefore(newCanvas, document.getElementById('webcamFeed'));
-    }
     
     try {
         stream = await navigator.mediaDevices.getUserMedia({ 
@@ -160,22 +161,32 @@ async function startWebcam() {
         video.style.display = 'none';
         document.body.appendChild(video);
         
-        const canvas = document.getElementById('webcamCanvas');
-        const ctx = canvas.getContext('2d');
+        const newCanvas = document.getElementById('webcamCanvas') || document.createElement('canvas');
+        newCanvas.id = 'webcamCanvas';
+        newCanvas.style.maxWidth = '100%';
+        newCanvas.style.borderRadius = '8px';
+        newCanvas.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.2)';
+        newCanvas.style.display = 'block';
+        newCanvas.style.margin = '20px 0';
         
-        canvas.width = 640;
-        canvas.height = 480;
-        canvas.style.display = 'block';
+        if (!canvas) {
+            const container = document.querySelector('.webcam-section');
+            container.insertBefore(newCanvas, status);
+        }
+        
+        const ctx = newCanvas.getContext('2d');
+        newCanvas.width = 640;
+        newCanvas.height = 480;
         
         webcamRunning = true;
-        status.textContent = 'Webcam is running...';
-        showMessage('Webcam started - Processing frames', 'success');
+        status.textContent = '🎥 Webcam is running... Detecting faces...';
+        showMessage('✅ Webcam started - Detecting faces in real-time', 'success');
         
         // Process frames
-        processWebcamFrames(video, canvas, ctx);
+        processWebcamFrames(video, newCanvas, ctx);
         
     } catch (error) {
-        showMessage('Error accessing webcam: ' + error.message, 'error');
+        showMessage('❌ Error accessing webcam: ' + error.message, 'error');
         console.error('Webcam error:', error);
     }
 }
@@ -183,44 +194,54 @@ async function startWebcam() {
 async function processWebcamFrames(video, canvas, ctx) {
     if (!webcamRunning) return;
     
+    // Draw video frame
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Send frame to backend every 2 frames for processing
-    if (Math.random() < 0.5) {
+    frameCount++;
+    
+    // Process every 3rd frame for performance
+    if (frameCount % 3 === 0) {
         canvas.toBlob(async (blob) => {
-            const formData = new FormData();
-            formData.append('file', blob, 'frame.jpg');
-            
             try {
+                const formData = new FormData();
+                formData.append('file', blob, 'frame.jpg');
+                
                 const response = await fetch('/recognize_image', {
                     method: 'POST',
                     body: formData
                 });
                 const data = await response.json();
                 
-                // Draw faces on canvas
+                // Redraw canvas with detection results
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
                 if (data.faces && data.faces.length > 0) {
                     data.faces.forEach(face => {
                         const loc = face.location;
-                        const color = face.name !== 'Unknown' ? '#00FF00' : '#FF0000';
+                        const isKnown = face.name !== 'Unknown';
+                        const color = isKnown ? '#00FF00' : '#FF0000';
                         
+                        // Draw rectangle
                         ctx.strokeStyle = color;
-                        ctx.lineWidth = 2;
+                        ctx.lineWidth = 3;
                         ctx.strokeRect(loc.left, loc.top, loc.right - loc.left, loc.bottom - loc.top);
                         
+                        // Draw label background
                         ctx.fillStyle = color;
-                        ctx.fillRect(loc.left, loc.bottom - 35, loc.right - loc.left, 35);
+                        ctx.fillRect(loc.left, loc.bottom - 40, loc.right - loc.left, 40);
                         
+                        // Draw text
                         ctx.fillStyle = '#FFFFFF';
-                        ctx.font = '14px Arial';
-                        const label = `${face.name} (${(face.confidence * 100).toFixed(1)}%)`;
+                        ctx.font = 'bold 14px Arial';
+                        const confidence = (face.confidence * 100).toFixed(1);
+                        const label = `${face.name} ${confidence}%`;
                         ctx.fillText(label, loc.left + 5, loc.bottom - 10);
                     });
                 }
             } catch (error) {
                 console.error('Frame processing error:', error);
             }
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 0.85);
     }
     
     requestAnimationFrame(() => processWebcamFrames(video, canvas, ctx));
@@ -231,6 +252,7 @@ function stopWebcam() {
     const canvas = document.getElementById('webcamCanvas');
     
     webcamRunning = false;
+    frameCount = 0;
     
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -244,8 +266,8 @@ function stopWebcam() {
         canvas.style.display = 'none';
     }
     
-    status.textContent = 'Webcam stopped';
-    showMessage('Webcam stopped', 'info');
+    status.textContent = '🛑 Webcam stopped';
+    showMessage('✅ Webcam stopped', 'info');
 }
 
 // Add face
@@ -312,6 +334,7 @@ function listKnownFaces() {
             card.innerHTML = `
                 <div style="font-size: 2em;">👤</div>
                 <div class="face-card-name">${face}</div>
+                <button class="btn btn-danger" style="margin-top: 10px; padding: 8px 12px; font-size: 0.9em;" onclick="deleteFace('${face}')">Delete</button>
             `;
             list.appendChild(card);
         });
@@ -321,6 +344,30 @@ function listKnownFaces() {
     })
     .catch(error => {
         showMessage('Error loading faces: ' + error.message, 'error');
+    });
+}
+
+function deleteFace(personName) {
+    if (!confirm(`Are you sure you want to delete ${personName}?`)) {
+        return;
+    }
+    
+    showMessage('Deleting...', 'info');
+    
+    fetch(`/delete_face/${encodeURIComponent(personName)}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(`${personName} deleted successfully!`, 'success');
+            listKnownFaces(); // Refresh the list
+        } else {
+            showMessage('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error: ' + error.message, 'error');
     });
 }
 
