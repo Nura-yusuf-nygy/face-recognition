@@ -45,7 +45,7 @@
             <!-- Webcam Tab -->
             <div id="webcam" class="tab-content">
                 <div class="webcam-section">
-                    <img id="webcamFeed" src="" alt="Webcam Feed" style="display: none;">
+                    <canvas id="webcamCanvas" style="display: none; max-width: 100%; border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); margin: 20px 0;"></canvas>
                     <div id="webcamStatus">Webcam not started</div>
                     <button onclick="startWebcam()" class="btn btn-success">Start Webcam</button>
                     <button onclick="stopWebcam()" class="btn btn-danger">Stop Webcam</button>

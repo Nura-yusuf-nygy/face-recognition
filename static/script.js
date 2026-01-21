@@ -128,28 +128,123 @@ function displayResults(data) {
     });
 }
 
-// Webcam
+// Webcam - Browser based
 let webcamRunning = false;
+let stream = null;
 
-function startWebcam() {
-    const feed = document.getElementById('webcamFeed');
+async function startWebcam() {
+    const canvas = document.getElementById('webcamCanvas');
     const status = document.getElementById('webcamStatus');
+    
+    if (!canvas) {
+        // Create canvas if it doesn't exist
+        const container = document.getElementById('webcamFeed').parentElement;
+        const newCanvas = document.createElement('canvas');
+        newCanvas.id = 'webcamCanvas';
+        newCanvas.style.maxWidth = '100%';
+        newCanvas.style.borderRadius = '8px';
+        newCanvas.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.2)';
+        container.insertBefore(newCanvas, document.getElementById('webcamFeed'));
+    }
+    
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false 
+        });
+        
+        const video = document.createElement('video');
+        video.id = 'webcamVideo';
+        video.srcObject = stream;
+        video.play();
+        video.style.display = 'none';
+        document.body.appendChild(video);
+        
+        const canvas = document.getElementById('webcamCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = 640;
+        canvas.height = 480;
+        canvas.style.display = 'block';
+        
+        webcamRunning = true;
+        status.textContent = 'Webcam is running...';
+        showMessage('Webcam started - Processing frames', 'success');
+        
+        // Process frames
+        processWebcamFrames(video, canvas, ctx);
+        
+    } catch (error) {
+        showMessage('Error accessing webcam: ' + error.message, 'error');
+        console.error('Webcam error:', error);
+    }
+}
 
-    feed.src = '/video_feed';
-    feed.style.display = 'block';
-    status.textContent = 'Webcam is running...';
-    webcamRunning = true;
-    showMessage('Webcam started', 'success');
+async function processWebcamFrames(video, canvas, ctx) {
+    if (!webcamRunning) return;
+    
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Send frame to backend every 2 frames for processing
+    if (Math.random() < 0.5) {
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('file', blob, 'frame.jpg');
+            
+            try {
+                const response = await fetch('/recognize_image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                // Draw faces on canvas
+                if (data.faces && data.faces.length > 0) {
+                    data.faces.forEach(face => {
+                        const loc = face.location;
+                        const color = face.name !== 'Unknown' ? '#00FF00' : '#FF0000';
+                        
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(loc.left, loc.top, loc.right - loc.left, loc.bottom - loc.top);
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(loc.left, loc.bottom - 35, loc.right - loc.left, 35);
+                        
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.font = '14px Arial';
+                        const label = `${face.name} (${(face.confidence * 100).toFixed(1)}%)`;
+                        ctx.fillText(label, loc.left + 5, loc.bottom - 10);
+                    });
+                }
+            } catch (error) {
+                console.error('Frame processing error:', error);
+            }
+        }, 'image/jpeg', 0.8);
+    }
+    
+    requestAnimationFrame(() => processWebcamFrames(video, canvas, ctx));
 }
 
 function stopWebcam() {
-    const feed = document.getElementById('webcamFeed');
     const status = document.getElementById('webcamStatus');
-
-    feed.src = '';
-    feed.style.display = 'none';
-    status.textContent = 'Webcam stopped';
+    const canvas = document.getElementById('webcamCanvas');
+    
     webcamRunning = false;
+    
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    
+    const video = document.getElementById('webcamVideo');
+    if (video) video.remove();
+    
+    if (canvas) {
+        canvas.style.display = 'none';
+    }
+    
+    status.textContent = 'Webcam stopped';
     showMessage('Webcam stopped', 'info');
 }
 
