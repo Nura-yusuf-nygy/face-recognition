@@ -1,0 +1,19 @@
+[33mcommit 2df2b1c2bad551535174acb1c9f78f626aae8a9e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Nura Yusuf <annuryusuf360@gmail.com>
+Date:   Wed Jan 21 10:13:33 2026 +0300
+
+    Initial commit: Face recognition system with Flask web interface
+
+A	Procfile
+A	README.md
+A	app/__init__.py
+A	app/face_recognizer.py
+A	app/routes.py
+A	cli.py
+A	face_model.yml
+A	main.py
+A	requirements.txt
+A	runtime.txt
+A	static/script.js
+A	static/style.css
+A	templates/index.html
