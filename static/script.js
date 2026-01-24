@@ -143,6 +143,8 @@ function displayResults(data) {
 let webcamRunning = false;
 let stream = null;
 let frameCount = 0;
+let processingFrame = false;  // Prevent concurrent requests
+let lastDetectedFaces = [];  // Store last detection results
 
 async function startWebcam() {
     const canvas = document.getElementById('webcamCanvas');
@@ -194,13 +196,40 @@ async function startWebcam() {
 async function processWebcamFrames(video, canvas, ctx) {
     if (!webcamRunning) return;
     
-    // Draw video frame
+    // Always draw video frame
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Always draw last detected faces (for persistence)
+    if (lastDetectedFaces && lastDetectedFaces.length > 0) {
+        lastDetectedFaces.forEach(face => {
+            const loc = face.location;
+            const isKnown = face.name !== 'Unknown';
+            const color = isKnown ? '#00FF00' : '#FF0000';
+            
+            // Draw rectangle
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(loc.left, loc.top, loc.right - loc.left, loc.bottom - loc.top);
+            
+            // Draw label background
+            ctx.fillStyle = color;
+            ctx.fillRect(loc.left, loc.bottom - 40, loc.right - loc.left, 40);
+            
+            // Draw text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 14px Arial';
+            const confidence = (face.confidence * 100).toFixed(1);
+            const label = `${face.name} ${confidence}%`;
+            ctx.fillText(label, loc.left + 5, loc.bottom - 10);
+        });
+    }
     
     frameCount++;
     
-    // Process every 3rd frame for performance
-    if (frameCount % 3 === 0) {
+    // Process every 3rd frame for performance, but only if not already processing
+    if (frameCount % 3 === 0 && !processingFrame) {
+        processingFrame = true;
+        
         canvas.toBlob(async (blob) => {
             try {
                 const formData = new FormData();
@@ -212,34 +241,16 @@ async function processWebcamFrames(video, canvas, ctx) {
                 });
                 const data = await response.json();
                 
-                // Redraw canvas with detection results
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
+                // Store detection results for drawing on subsequent frames
                 if (data.faces && data.faces.length > 0) {
-                    data.faces.forEach(face => {
-                        const loc = face.location;
-                        const isKnown = face.name !== 'Unknown';
-                        const color = isKnown ? '#00FF00' : '#FF0000';
-                        
-                        // Draw rectangle
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(loc.left, loc.top, loc.right - loc.left, loc.bottom - loc.top);
-                        
-                        // Draw label background
-                        ctx.fillStyle = color;
-                        ctx.fillRect(loc.left, loc.bottom - 40, loc.right - loc.left, 40);
-                        
-                        // Draw text
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.font = 'bold 14px Arial';
-                        const confidence = (face.confidence * 100).toFixed(1);
-                        const label = `${face.name} ${confidence}%`;
-                        ctx.fillText(label, loc.left + 5, loc.bottom - 10);
-                    });
+                    lastDetectedFaces = data.faces;
+                } else {
+                    lastDetectedFaces = [];
                 }
             } catch (error) {
                 console.error('Frame processing error:', error);
+            } finally {
+                processingFrame = false;  // Allow next request
             }
         }, 'image/jpeg', 0.85);
     }
@@ -253,6 +264,7 @@ function stopWebcam() {
     
     webcamRunning = false;
     frameCount = 0;
+    lastDetectedFaces = [];  // Clear stored faces
     
     if (stream) {
         stream.getTracks().forEach(track => track.stop());

@@ -5,12 +5,10 @@ from pathlib import Path
 from app.face_recognizer import FaceRecognizer
 
 # Configuration
-UPLOAD_FOLDER = 'uploads'
+root_dir = Path(__file__).parent.parent
+UPLOAD_FOLDER = str(root_dir / 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
-
-# Get the root directory (parent of the app directory)
-root_dir = Path(__file__).parent.parent
 
 # Create app with correct template and static paths
 app = Flask(
@@ -60,8 +58,18 @@ def recognize_image():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
+        # Validate file was saved and has content
+        if not os.path.exists(filepath) or os.path.getsize(filepath) < 100:
+            # File too small or doesn't exist
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': None, 'faces': []}), 200
+        
+        # Convert to absolute path with forward slashes for OpenCV compatibility
+        abs_filepath = os.path.abspath(filepath).replace('\\', '/')
+        
         # Recognize faces
-        result = recognizer.recognize_faces_in_image(filepath)
+        result = recognizer.recognize_faces_in_image(abs_filepath)
         
         # Clean up
         os.remove(filepath)
@@ -102,8 +110,11 @@ def add_face():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
+        # Convert to absolute path with forward slashes for OpenCV compatibility
+        abs_filepath = os.path.abspath(filepath).replace('\\', '/')
+        
         # Add to known faces
-        result = recognizer.add_face_to_known(filepath, name)
+        result = recognizer.add_face_to_known(abs_filepath, name)
         
         # Clean up
         os.remove(filepath)

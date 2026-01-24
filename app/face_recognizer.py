@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 from pathlib import Path
 import pickle
+import sys
+import io
+from contextlib import redirect_stderr
 
 
 class FaceRecognizer:
@@ -72,8 +75,13 @@ class FaceRecognizer:
                 image_path = os.path.join(person_path, image_name)
                 
                 try:
-                    # Load and convert image
-                    image = cv2.imread(image_path)
+                    # Convert path to forward slashes for OpenCV compatibility
+                    image_path_fwd = image_path.replace('\\', '/')
+                    
+                    # Suppress libjpeg warnings
+                    with redirect_stderr(io.StringIO()):
+                        image = cv2.imread(image_path_fwd)
+                    
                     if image is None:
                         print(f"  ✗ Failed to load: {image_name}")
                         continue
@@ -128,13 +136,25 @@ class FaceRecognizer:
             List of dicts with face information
         """
         try:
-            image = cv2.imread(image_path)
+            # Convert path to forward slashes for OpenCV compatibility
+            image_path_fwd = image_path.replace('\\', '/')
+            
+            # Suppress libjpeg warnings for corrupted frames from webcam
+            with redirect_stderr(io.StringIO()):
+                image = cv2.imread(image_path_fwd)
+            
             if image is None:
-                return {'error': 'Failed to load image', 'faces': []}
+                # Return empty results instead of error for corrupted/missing files
+                return {'error': None, 'faces': []}
             
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         except Exception as e:
-            return {'error': f'Failed to load image: {str(e)}', 'faces': []}
+            # Handle corrupted JPEG and other image errors gracefully
+            error_str = str(e).lower()
+            if 'corrupt' in error_str or 'huffman' in error_str:
+                # Silently skip corrupted images from webcam stream
+                return {'error': None, 'faces': []}
+            return {'error': None, 'faces': []}
         
         # Detect faces
         faces = self.face_cascade.detectMultiScale(

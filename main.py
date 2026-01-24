@@ -1,5 +1,6 @@
 """
 Main entry point for the Face Recognition Flask application.
+.\.venv-1\Scripts\python.exe main.py
 """
 import sys
 import os
